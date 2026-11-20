@@ -12,11 +12,11 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.Button;
-import android.widget.LinearLayout;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -28,250 +28,156 @@ import javax.microedition.khronos.opengles.GL10;
 public class MainActivity extends Activity implements SensorEventListener {
     private SensorManager sensors;
     private Sensor rotationSensor;
-    private VrSurface vrSurface;
-    private VrRenderer renderer;
-    private TextView telemetry;
-    private float[] rotation = new float[16];
-    private float[] orientation = new float[3];
-    private float yaw0, pitch0, roll0;
+    private SceneView scene;
+    private WorldRenderer renderer;
+    private TextView hud;
+    private final float[] matrix=new float[16], orientation=new float[3];
+    private float zeroYaw,zeroPitch,zeroRoll;
     private boolean calibrated;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        getWindow().getDecorView().setSystemUiVisibility(5894 | 1024 | 512 | 4096);
-        sensors = (SensorManager)getSystemService(Context.SENSOR_SERVICE);
-        rotationSensor = sensors.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR);
-        if (rotationSensor == null) rotationSensor = sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+        getWindow().getDecorView().setSystemUiVisibility(5894|1024|512|4096);
+        sensors=(SensorManager)getSystemService(Context.SENSOR_SERVICE);
+        rotationSensor=sensors.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR);
+        if(rotationSensor==null) rotationSensor=sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(5, 11, 20));
-        vrSurface = new VrSurface(this);
-        renderer = new VrRenderer();
-        vrSurface.setRenderer(renderer);
-        vrSurface.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
-        root.addView(vrSurface, new LinearLayout.LayoutParams(-1, 0, 1));
+        FrameLayout root=new FrameLayout(this);
+        scene=new SceneView(this);
+        renderer=new WorldRenderer();
+        scene.setRenderer(renderer);
+        scene.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
+        root.addView(scene,new FrameLayout.LayoutParams(-1,-1));
 
-        telemetry = new TextView(this);
-        telemetry.setTextColor(Color.rgb(113, 235, 215));
-        telemetry.setTextSize(12);
-        telemetry.setPadding(12, 5, 12, 5);
-        telemetry.setGravity(Gravity.CENTER);
-        telemetry.setBackgroundColor(Color.rgb(10, 24, 36));
-        root.addView(telemetry, new LinearLayout.LayoutParams(-1, -2));
+        hud=new TextView(this);
+        hud.setTextColor(Color.WHITE); hud.setTextSize(12); hud.setGravity(Gravity.CENTER);
+        hud.setPadding(12,10,12,10); hud.setBackgroundColor(0x99071320);
+        hud.setText("POCKET VR  |  ПОВОРАЧИВАЙ ТЕЛЕФОН");
+        root.addView(hud,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
 
-        LinearLayout controls = new LinearLayout(this);
-        controls.setOrientation(LinearLayout.VERTICAL);
-        controls.setPadding(5, 3, 5, 5);
-        controls.setBackgroundColor(Color.rgb(8, 17, 29));
-        root.addView(controls, new LinearLayout.LayoutParams(-1, -2));
+        TextView center=new TextView(this);
+        center.setText("＋"); center.setTextColor(0xCCFFFFFF); center.setTextSize(26);
+        center.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-1,-1);
+        root.addView(center,cp);
+        center.setOnClickListener(v -> renderer.interact());
 
-        LinearLayout row1 = new LinearLayout(this);
-        LinearLayout row2 = new LinearLayout(this);
-        LinearLayout row3 = new LinearLayout(this);
-        LinearLayout row4 = new LinearLayout(this);
-        controls.addView(row1); controls.addView(row2); controls.addView(row3); controls.addView(row4);
-        addButton(row1, "RECENTER", v -> recenter(), 1);
-        addButton(row1, "LEFT HAND", v -> renderer.selectedHand = 0, 1);
-        addButton(row1, "RIGHT HAND", v -> renderer.selectedHand = 1, 1);
-        addButton(row2, "X −", v -> renderer.moveHand(-0.08f,0,0), 1);
-        addButton(row2, "X +", v -> renderer.moveHand(0.08f,0,0), 1);
-        addButton(row2, "Y −", v -> renderer.moveHand(0,-0.08f,0), 1);
-        addButton(row2, "Y +", v -> renderer.moveHand(0,0.08f,0), 1);
-        addButton(row3, "ROT −", v -> renderer.rotateHand(-8), 1);
-        addButton(row3, "ROT +", v -> renderer.rotateHand(8), 1);
-        addButton(row3, "RESET HANDS", v -> renderer.resetHands(), 1);
-        addButton(row3, "IPD", v -> renderer.ipd = renderer.ipd > 0.075f ? 0.055f : renderer.ipd + 0.005f, 1);
-        addButton(row4, "Z −", v -> renderer.moveHand(0,0,-0.08f), 1);
-        addButton(row4, "Z +", v -> renderer.moveHand(0,0,0.08f), 1);
-        addButton(row4, "PITCH −", v -> renderer.rotateHandPitch(-8), 1);
-        addButton(row4, "PITCH +", v -> renderer.rotateHandPitch(8), 1);
-        setContentView(root);
-        updateTelemetry();
-    }
+        TextView recenter=new TextView(this);
+        recenter.setText("◎  ЦЕНТР"); recenter.setTextColor(Color.WHITE);
+        recenter.setTextSize(13); recenter.setGravity(Gravity.CENTER);
+        recenter.setPadding(20,12,20,12); recenter.setBackgroundColor(0xCC123448);
+        FrameLayout.LayoutParams rp=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
+        rp.bottomMargin=18; root.addView(recenter,rp);
+        recenter.setOnClickListener(v -> recenter());
 
-    private void addButton(LinearLayout row, String label, View.OnClickListener click, float weight) {
-        Button b = new Button(this);
-        b.setText(label); b.setTextSize(9); b.setAllCaps(false);
-        b.setTextColor(Color.WHITE);
-        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(24, 55, 72)));
-        b.setOnClickListener(click);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 42, weight);
-        lp.setMargins(2, 1, 2, 1);
-        row.addView(b, lp);
-    }
-
-    private void recenter() {
-        yaw0 = orientation[0]; pitch0 = orientation[1]; roll0 = orientation[2];
-        calibrated = true;
-        if (renderer != null) renderer.setHead(0,0,0);
-    }
-
-    private void updateTelemetry() {
-        if (telemetry == null || renderer == null) return;
-        telemetry.setText(String.format(Locale.US,
-            "HEAD  YAW %+.1f°  PITCH %+.1f°  ROLL %+.1f°     HAND: %s   IPD %.0f mm",
-            Math.toDegrees(renderer.headYaw), Math.toDegrees(renderer.headPitch),
-            Math.toDegrees(renderer.headRoll), renderer.selectedHand == 0 ? "LEFT" : "RIGHT", renderer.ipd*1000));
-        telemetry.postDelayed(this::updateTelemetry, 120);
-    }
-
-    @Override protected void onResume() {
-        super.onResume();
-        if (vrSurface != null) vrSurface.onResume();
-        if (rotationSensor != null) sensors.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_GAME);
-    }
-    @Override protected void onPause() {
-        if (sensors != null) sensors.unregisterListener(this);
-        if (vrSurface != null) vrSurface.onPause();
-        super.onPause();
-    }
-    @Override public void onSensorChanged(SensorEvent e) {
-        if (e.sensor.getType() != Sensor.TYPE_GAME_ROTATION_VECTOR &&
-            e.sensor.getType() != Sensor.TYPE_ROTATION_VECTOR) return;
-        SensorManager.getRotationMatrixFromVector(rotation, e.values);
-        SensorManager.getOrientation(rotation, orientation);
-        if (!calibrated) { yaw0=orientation[0]; pitch0=orientation[1]; roll0=orientation[2]; calibrated=true; }
-        if (renderer != null) renderer.setHead(wrap(orientation[0]-yaw0), wrap(orientation[1]-pitch0), wrap(orientation[2]-roll0));
-    }
-    private float wrap(float a) {
-        while (a > Math.PI) a -= (float)(2*Math.PI);
-        while (a < -Math.PI) a += (float)(2*Math.PI);
-        return a;
-    }
-    @Override public void onAccuracyChanged(Sensor s, int a) { }
-
-    private static class VrSurface extends GLSurfaceView {
-        VrSurface(Context c) { super(c); setEGLContextClientVersion(2); setPreserveEGLContextOnPause(true); }
-    }
-
-    private static class VrRenderer implements GLSurfaceView.Renderer {
-        private static final String VERT =
-            "attribute vec3 aPosition; uniform mat4 uMvp; void main(){ gl_Position=uMvp*vec4(aPosition,1.0); }";
-        private static final String FRAG =
-            "precision mediump float; uniform vec4 uColor; void main(){ gl_FragColor=uColor; }";
-        private int program, posHandle, mvpHandle, colorHandle;
-        private int surfaceWidth, surfaceHeight;
-        private FloatBuffer cube;
-        private FloatBuffer grid;
-        volatile float headYaw, headPitch, headRoll;
-        volatile int selectedHand = 0;
-        volatile float ipd = 0.064f;
-        private final float[][] handPos = {{-0.32f,-0.32f,-1.05f},{0.32f,-0.32f,-1.05f}};
-        private final float[] handYaw = {0,0};
-        private final float[] handPitch = {0,0};
-
-        void setHead(float y,float p,float r) { headYaw=y; headPitch=p; headRoll=r; }
-        void moveHand(float x,float y,float z) {
-            int i=selectedHand; handPos[i][0]=clamp(handPos[i][0]+x,-1.1f,1.1f);
-            handPos[i][1]=clamp(handPos[i][1]+y,-1.0f,0.6f);
-            handPos[i][2]=clamp(handPos[i][2]+z,-2.2f,-0.4f);
-        }
-        void rotateHand(float a) { handYaw[selectedHand] += a; }
-        void rotateHandPitch(float a) { handPitch[selectedHand] = clamp(handPitch[selectedHand]+a,-85,85); }
-        void resetHands() {
-            handPos[0]=new float[]{-0.32f,-0.32f,-1.05f};
-            handPos[1]=new float[]{0.32f,-0.32f,-1.05f};
-            handYaw[0]=handYaw[1]=handPitch[0]=handPitch[1]=0;
-        }
-        private float clamp(float v,float lo,float hi) { return Math.max(lo,Math.min(hi,v)); }
-
-        @Override public void onSurfaceCreated(GL10 gl,EGLConfig config) {
-            GLES20.glClearColor(0.015f,0.035f,0.065f,1);
-            GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-            program = GLES20.glCreateProgram();
-            int vs=shader(GLES20.GL_VERTEX_SHADER,VERT), fs=shader(GLES20.GL_FRAGMENT_SHADER,FRAG);
-            GLES20.glAttachShader(program,vs); GLES20.glAttachShader(program,fs); GLES20.glLinkProgram(program);
-            posHandle=GLES20.glGetAttribLocation(program,"aPosition");
-            mvpHandle=GLES20.glGetUniformLocation(program,"uMvp");
-            colorHandle=GLES20.glGetUniformLocation(program,"uColor");
-            cube=buffer(new float[]{
-                -0.5f,-0.5f,-0.5f, 0.5f,-0.5f,-0.5f, 0.5f,0.5f,-0.5f, -0.5f,-0.5f,-0.5f, 0.5f,0.5f,-0.5f, -0.5f,0.5f,-0.5f,
-                -0.5f,-0.5f,0.5f, 0.5f,0.5f,0.5f, 0.5f,-0.5f,0.5f, -0.5f,-0.5f,0.5f, -0.5f,0.5f,0.5f, 0.5f,0.5f,0.5f,
-                -0.5f,-0.5f,-0.5f, -0.5f,0.5f,0.5f, -0.5f,-0.5f,0.5f, -0.5f,-0.5f,-0.5f, -0.5f,0.5f,-0.5f, -0.5f,0.5f,0.5f,
-                0.5f,-0.5f,-0.5f, 0.5f,-0.5f,0.5f, 0.5f,0.5f,0.5f, 0.5f,-0.5f,-0.5f, 0.5f,0.5f,0.5f, 0.5f,0.5f,-0.5f,
-                -0.5f,0.5f,-0.5f, 0.5f,0.5f,-0.5f, 0.5f,0.5f,0.5f, -0.5f,0.5f,-0.5f, 0.5f,0.5f,0.5f, -0.5f,0.5f,0.5f,
-                -0.5f,-0.5f,-0.5f, 0.5f,-0.5f,0.5f, 0.5f,-0.5f,-0.5f, -0.5f,-0.5f,-0.5f, -0.5f,-0.5f,0.5f, 0.5f,-0.5f,0.5f
-            });
-            float[] lines=new float[21*4*3]; int k=0;
-            for(int i=-10;i<=10;i++) {
-                lines[k++]=i*0.25f; lines[k++]=-0.55f; lines[k++]=0;
-                lines[k++]=i*0.25f; lines[k++]=-0.55f; lines[k++]=-5;
-                lines[k++]=-2.5f; lines[k++]=-0.55f; lines[k++]=i*0.25f-2.5f;
-                lines[k++]=2.5f; lines[k++]=-0.55f; lines[k++]=i*0.25f-2.5f;
+        scene.setOnTouchListener(new View.OnTouchListener() {
+            float lastX,lastY; boolean moved;
+            public boolean onTouch(View v,MotionEvent e) {
+                if(e.getAction()==MotionEvent.ACTION_DOWN){lastX=e.getX();lastY=e.getY();moved=false;return true;}
+                if(e.getAction()==MotionEvent.ACTION_MOVE){
+                    float dx=e.getX()-lastX,dy=e.getY()-lastY;
+                    if(Math.abs(dx)+Math.abs(dy)>8)moved=true;
+                    renderer.drag(-dx*0.004f,dy*0.004f);
+                    lastX=e.getX();lastY=e.getY();return true;
+                }
+                if(e.getAction()==MotionEvent.ACTION_UP){if(!moved)renderer.interact();return true;}
+                return true;
             }
-            grid=buffer(lines);
-        }
-        private FloatBuffer buffer(float[] a) {
-            FloatBuffer b=ByteBuffer.allocateDirect(a.length*4).order(ByteOrder.nativeOrder()).asFloatBuffer();
-            b.put(a).position(0); return b;
-        }
-        private int shader(int type,String src) {
-            int s=GLES20.glCreateShader(type); GLES20.glShaderSource(s,src); GLES20.glCompileShader(s); return s;
-        }
-        @Override public void onSurfaceChanged(GL10 gl,int w,int h) { surfaceWidth=w; surfaceHeight=h; GLES20.glViewport(0,0,w,h); }
+        });
+        setContentView(root);
+        updateHud();
+    }
 
-        @Override public void onDrawFrame(GL10 gl) {
+    private void recenter(){
+        zeroYaw=orientation[0];zeroPitch=orientation[1];zeroRoll=orientation[2];calibrated=true;
+        renderer.resetLook();
+    }
+    private void updateHud(){
+        if(hud==null||renderer==null)return;
+        hud.setText(String.format(Locale.US,"POCKET VR  |  YAW %+.0f°  PITCH %+.0f°  |  ОБЪЕКТ: %d",
+            Math.toDegrees(renderer.yaw),Math.toDegrees(renderer.pitch),renderer.active+1));
+        hud.postDelayed(this::updateHud,150);
+    }
+    @Override protected void onResume(){
+        super.onResume();if(scene!=null)scene.onResume();
+        if(rotationSensor!=null)sensors.registerListener(this,rotationSensor,SensorManager.SENSOR_DELAY_GAME);
+    }
+    @Override protected void onPause(){
+        if(sensors!=null)sensors.unregisterListener(this);if(scene!=null)scene.onPause();super.onPause();
+    }
+    @Override public void onSensorChanged(SensorEvent e){
+        if(e.sensor.getType()!=Sensor.TYPE_GAME_ROTATION_VECTOR&&e.sensor.getType()!=Sensor.TYPE_ROTATION_VECTOR)return;
+        SensorManager.getRotationMatrixFromVector(matrix,e.values);
+        SensorManager.getOrientation(matrix,orientation);
+        if(!calibrated){zeroYaw=orientation[0];zeroPitch=orientation[1];zeroRoll=orientation[2];calibrated=true;}
+        renderer.sensorLook(wrap(orientation[0]-zeroYaw),wrap(orientation[1]-zeroPitch),wrap(orientation[2]-zeroRoll));
+    }
+    private float wrap(float a){while(a>Math.PI)a-=2*Math.PI;while(a< -Math.PI)a+=2*Math.PI;return a;}
+    @Override public void onAccuracyChanged(Sensor s,int a){}
+
+    private static class SceneView extends GLSurfaceView{
+        SceneView(Context c){super(c);setEGLContextClientVersion(2);setPreserveEGLContextOnPause(true);}
+    }
+
+    private static class WorldRenderer implements GLSurfaceView.Renderer{
+        private static final String VS="attribute vec3 p; uniform mat4 m; void main(){gl_Position=m*vec4(p,1.0);}";
+        private static final String FS="precision mediump float; uniform vec4 c; void main(){gl_FragColor=c;}";
+        int program,ph,mh,ch,w,h;
+        FloatBuffer cube,grid;
+        final float[] proj=new float[16],view=new float[16],vp=new float[16],model=new float[16],mvp=new float[16];
+        volatile float yaw,pitch,roll;
+        float touchYaw,touchPitch;
+        volatile int active=0;
+        void sensorLook(float y,float p,float r){yaw=y+touchYaw;pitch=clamp(p+touchPitch,-1.3f,1.3f);roll=r;}
+        void drag(float y,float p){touchYaw=clamp(touchYaw+y,-3.1f,3.1f);touchPitch=clamp(touchPitch+p,-1.3f,1.3f);yaw+=y;pitch=clamp(pitch+p,-1.3f,1.3f);}
+        void resetLook(){touchYaw=touchPitch=0;yaw=pitch=roll=0;}
+        void interact(){active=(active+1)%3;}
+        float clamp(float v,float a,float b){return Math.max(a,Math.min(b,v));}
+        @Override public void onSurfaceCreated(GL10 gl,EGLConfig cfg){
+            GLES20.glClearColor(.012f,.022f,.045f,1);GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+            int vs=shader(GLES20.GL_VERTEX_SHADER,VS),fs=shader(GLES20.GL_FRAGMENT_SHADER,FS);
+            program=GLES20.glCreateProgram();GLES20.glAttachShader(program,vs);GLES20.glAttachShader(program,fs);GLES20.glLinkProgram(program);
+            ph=GLES20.glGetAttribLocation(program,"p");mh=GLES20.glGetUniformLocation(program,"m");ch=GLES20.glGetUniformLocation(program,"c");
+            cube=buf(new float[]{
+            -.5f,-.5f,-.5f,.5f,-.5f,-.5f,.5f,.5f,-.5f,-.5f,-.5f,-.5f,.5f,.5f,-.5f,-.5f,.5f,-.5f,
+            -.5f,-.5f,.5f,.5f,.5f,.5f,.5f,-.5f,.5f,-.5f,-.5f,.5f,-.5f,.5f,.5f,.5f,.5f,.5f,
+            -.5f,-.5f,-.5f,-.5f,.5f,.5f,-.5f,-.5f,.5f,-.5f,-.5f,-.5f,-.5f,.5f,-.5f,-.5f,.5f,.5f,
+            .5f,-.5f,-.5f,.5f,-.5f,.5f,.5f,.5f,.5f,.5f,-.5f,-.5f,.5f,.5f,.5f,.5f,.5f,-.5f,
+            -.5f,.5f,-.5f,.5f,.5f,-.5f,.5f,.5f,.5f,-.5f,.5f,-.5f,.5f,.5f,.5f,-.5f,.5f,.5f,
+            -.5f,-.5f,-.5f,.5f,-.5f,.5f,.5f,-.5f,-.5f,-.5f,-.5f,-.5f,-.5f,-.5f,.5f,.5f,-.5f,.5f});
+            float[] a=new float[252];int k=0;
+            for(int i=-10;i<=10;i++){a[k++]=i*.25f;a[k++]=-.6f;a[k++]=0;a[k++]=i*.25f;a[k++]=-.6f;a[k++]=-5;
+                a[k++]=-2.5f;a[k++]=-.6f;a[k++]=i*.25f-2.5f;a[k++]=2.5f;a[k++]=-.6f;a[k++]=i*.25f-2.5f;}
+            grid=buf(a);
+        }
+        int shader(int t,String s){int x=GLES20.glCreateShader(t);GLES20.glShaderSource(x,s);GLES20.glCompileShader(x);return x;}
+        FloatBuffer buf(float[] a){FloatBuffer b=ByteBuffer.allocateDirect(a.length*4).order(ByteOrder.nativeOrder()).asFloatBuffer();b.put(a).position(0);return b;}
+        @Override public void onSurfaceChanged(GL10 gl,int x,int y){w=x;h=y;GLES20.glViewport(0,0,x,y);}
+        @Override public void onDrawFrame(GL10 gl){
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT|GLES20.GL_DEPTH_BUFFER_BIT);
-            int w=surfaceWidth, h=surfaceHeight;
-            int eyeW=w/2;
-            drawEye(0,eyeW,h,-1);
-            drawEye(eyeW,w-eyeW,h,1);
-        }
-        private void drawEye(int x,int width,int height,int eye) {
-            GLES20.glViewport(x,0,width,height);
-            float[] proj=new float[16], view=new float[16], vp=new float[16], model=new float[16], mvp=new float[16];
-            float aspect=(float)width/Math.max(1,height);
-            Matrix.perspectiveM(proj,0,78,aspect,0.05f,40f);
-            float eyeOffset=eye*ipd*0.5f;
-            float cy=(float)Math.cos(headYaw), sy=(float)Math.sin(headYaw);
-            float cp=(float)Math.cos(headPitch), sp=(float)Math.sin(headPitch);
-            float camX=eyeOffset, camY=0, camZ=0;
-            float lookX=sy*cp, lookY=-sp, lookZ=-cy*cp;
-            Matrix.setLookAtM(view,0,camX,camY,camZ,camX+lookX,camY+lookY,camZ+lookZ,0,1,0);
-            Matrix.rotateM(view,0,headRoll,0,0,1);
+            Matrix.perspectiveM(proj,0,70,(float)w/Math.max(1,h),.05f,60);
+            float cp=(float)Math.cos(pitch),sp=(float)Math.sin(pitch),cy=(float)Math.cos(yaw),sy=(float)Math.sin(yaw);
+            Matrix.setLookAtM(view,0,0,0,0,sy*cp,-sp,-cy*cp,0,1,0);
+            Matrix.rotateM(view,0,(float)Math.toDegrees(roll),0,0,1);
             Matrix.multiplyMM(vp,0,proj,0,view,0);
-            GLES20.glUseProgram(program);
-            GLES20.glEnableVertexAttribArray(posHandle);
-            drawLines(vp,grid,0xFF234253,84);
-            drawCube(vp,0,0.05f,-2.7f,0.7f,0.7f,0.7f,0.12f,0.78f,0.72f);
-            drawCube(vp,-1.15f,-0.12f,-2.0f,0.35f,0.55f,0.35f,0.95f,0.55f,0.22f);
-            drawCube(vp,1.1f,-0.12f,-2.3f,0.4f,0.4f,0.4f,0.35f,0.55f,0.95f);
-            drawController(vp,0);
-            drawController(vp,1);
-            GLES20.glDisableVertexAttribArray(posHandle);
+            GLES20.glUseProgram(program);GLES20.glEnableVertexAttribArray(ph);
+            lines();
+            box(0,-.05f,-3,.85f,.85f,.85f,active==0?.15f:.08f,active==0?.95f:.48f,.8f);
+            box(-1.3f,-.05f,-2.3f,.5f,.85f,.5f,active==1?1:.85f,.45f,.16f);
+            box(1.3f,-.05f,-2.5f,.55f,.55f,.55f,.25f,.55f,active==2?1:.9f);
+            box(0,-.65f,-2.8f,5,.08f,5,.09f,.13f,.2f);
+            GLES20.glDisableVertexAttribArray(ph);
         }
-        private void drawLines(float[] vp,FloatBuffer vertices,int color,int count) {
-            Matrix.setIdentityM(new float[16],0);
-            GLES20.glUniformMatrix4fv(mvpHandle,1,false,vp,0);
-            GLES20.glUniform4f(colorHandle,((color>>16)&255)/255f,((color>>8)&255)/255f,(color&255)/255f,1);
-            vertices.position(0); GLES20.glVertexAttribPointer(posHandle,3,GLES20.GL_FLOAT,false,0,vertices);
-            GLES20.glLineWidth(1.2f); GLES20.glDrawArrays(GLES20.GL_LINES,0,count);
+        void lines(){
+            GLES20.glUniformMatrix4fv(mh,1,false,vp,0);GLES20.glUniform4f(ch,.08f,.2f,.28f,1);
+            grid.position(0);GLES20.glVertexAttribPointer(ph,3,GLES20.GL_FLOAT,false,0,grid);GLES20.glDrawArrays(GLES20.GL_LINES,0,84);
         }
-        private void drawCube(float[] vp,float x,float y,float z,float sx,float sy,float sz,float r,float g,float b) {
-            Matrix.setIdentityM(model,0);
-            Matrix.translateM(model,0,x,y,z); Matrix.scaleM(model,0,sx,sy,sz);
-            Matrix.multiplyMM(mvp,0,vp,0,model,0);
-            GLES20.glUniformMatrix4fv(mvpHandle,1,false,mvp,0);
-            GLES20.glUniform4f(colorHandle,r,g,b,1);
-            cube.position(0); GLES20.glVertexAttribPointer(posHandle,3,GLES20.GL_FLOAT,false,0,cube);
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLES,0,36);
-        }
-        private final float[] model=new float[16], mvp=new float[16];
-        private void drawController(float[] vp,int i) {
-            float[] pos=handPos[i];
-            Matrix.setIdentityM(model,0);
-            Matrix.translateM(model,0,pos[0],pos[1],pos[2]);
-            Matrix.rotateM(model,0,handYaw[i],0,1,0);
-            Matrix.rotateM(model,0,handPitch[i],1,0,0);
-            Matrix.scaleM(model,0,0.11f,0.18f,0.28f);
-            Matrix.multiplyMM(mvp,0,vp,0,model,0);
-            GLES20.glUniformMatrix4fv(mvpHandle,1,false,mvp,0);
-            GLES20.glUniform4f(colorHandle,i==0?0.2f:0.95f,i==0?0.82f:0.42f,i==0?0.72f:0.25f,1);
-            cube.position(0); GLES20.glVertexAttribPointer(posHandle,3,GLES20.GL_FLOAT,false,0,cube);
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLES,0,36);
+        void box(float x,float y,float z,float sx,float sy,float sz,float r,float g,float b){
+            Matrix.setIdentityM(model,0);Matrix.translateM(model,0,x,y,z);Matrix.scaleM(model,0,sx,sy,sz);Matrix.multiplyMM(mvp,0,vp,0,model,0);
+            GLES20.glUniformMatrix4fv(mh,1,false,mvp,0);GLES20.glUniform4f(ch,r,g,b,1);
+            cube.position(0);GLES20.glVertexAttribPointer(ph,3,GLES20.GL_FLOAT,false,0,cube);GLES20.glDrawArrays(GLES20.GL_TRIANGLES,0,36);
         }
     }
 }
