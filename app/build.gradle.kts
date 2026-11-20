@@ -16,6 +16,8 @@ android {
 
     buildTypes {
         release {
+            // Test release is signed with the standard debug key so Android can install it.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
