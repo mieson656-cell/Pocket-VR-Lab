@@ -83,7 +83,11 @@ public class MainActivity extends Activity implements SensorEventListener {
         addButton(row3, "ROT −", v -> renderer.rotateHand(-8), 1);
         addButton(row3, "ROT +", v -> renderer.rotateHand(8), 1);
         addButton(row3, "RESET HANDS", v -> renderer.resetHands(), 1);
-        addButton(row3, "IPD", v -> renderer.ipd = renderer.ipd > 0.075f ? 0.055f : renderer.ipd + 0.005f, 1);\n        addButton(row4, "Z −", v -> renderer.moveHand(0,0,-0.08f), 1);\n        addButton(row4, "Z +", v -> renderer.moveHand(0,0,0.08f), 1);\n        addButton(row4, "PITCH −", v -> renderer.rotateHandPitch(-8), 1);\n        addButton(row4, "PITCH +", v -> renderer.rotateHandPitch(8), 1);
+        addButton(row3, "IPD", v -> renderer.ipd = renderer.ipd > 0.075f ? 0.055f : renderer.ipd + 0.005f, 1);
+        addButton(row4, "Z −", v -> renderer.moveHand(0,0,-0.08f), 1);
+        addButton(row4, "Z +", v -> renderer.moveHand(0,0,0.08f), 1);
+        addButton(row4, "PITCH −", v -> renderer.rotateHandPitch(-8), 1);
+        addButton(row4, "PITCH +", v -> renderer.rotateHandPitch(8), 1);
         setContentView(root);
         updateTelemetry();
     }
@@ -165,7 +169,8 @@ public class MainActivity extends Activity implements SensorEventListener {
             handPos[i][1]=clamp(handPos[i][1]+y,-1.0f,0.6f);
             handPos[i][2]=clamp(handPos[i][2]+z,-2.2f,-0.4f);
         }
-        void rotateHand(float a) { handYaw[selectedHand] += a; }\n        void rotateHandPitch(float a) { handPitch[selectedHand] = clamp(handPitch[selectedHand]+a,-85,85); }
+        void rotateHand(float a) { handYaw[selectedHand] += a; }
+        void rotateHandPitch(float a) { handPitch[selectedHand] = clamp(handPitch[selectedHand]+a,-85,85); }
         void resetHands() {
             handPos[0]=new float[]{-0.32f,-0.32f,-1.05f};
             handPos[1]=new float[]{0.32f,-0.32f,-1.05f};
@@ -225,7 +230,8 @@ public class MainActivity extends Activity implements SensorEventListener {
             float cp=(float)Math.cos(headPitch), sp=(float)Math.sin(headPitch);
             float camX=eyeOffset, camY=0, camZ=0;
             float lookX=sy*cp, lookY=-sp, lookZ=-cy*cp;
-            Matrix.setLookAtM(view,0,camX,camY,camZ,camX+lookX,camY+lookY,camZ+lookZ,0,1,0);\n            Matrix.rotateM(view,0,headRoll,0,0,1);
+            Matrix.setLookAtM(view,0,camX,camY,camZ,camX+lookX,camY+lookY,camZ+lookZ,0,1,0);
+            Matrix.rotateM(view,0,headRoll,0,0,1);
             Matrix.multiplyMM(vp,0,proj,0,view,0);
             GLES20.glUseProgram(program);
             GLES20.glEnableVertexAttribArray(posHandle);
