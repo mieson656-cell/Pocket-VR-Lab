@@ -62,7 +62,8 @@ public class MainActivity extends Activity implements SensorEventListener {
         center.setGravity(Gravity.CENTER);
         FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-1,-1);
         root.addView(center,cp);
-        center.setOnClickListener(v -> renderer.interact());
+        center.setClickable(false);
+        center.setFocusable(false);
 
         TextView recenter=new TextView(this);
         recenter.setText("◎  ЦЕНТР"); recenter.setTextColor(Color.WHITE);
