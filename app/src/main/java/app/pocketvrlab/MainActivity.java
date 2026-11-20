@@ -71,7 +71,8 @@ public class MainActivity extends Activity implements SensorEventListener {
         LinearLayout row1 = new LinearLayout(this);
         LinearLayout row2 = new LinearLayout(this);
         LinearLayout row3 = new LinearLayout(this);
-        controls.addView(row1); controls.addView(row2); controls.addView(row3);
+        LinearLayout row4 = new LinearLayout(this);
+        controls.addView(row1); controls.addView(row2); controls.addView(row3); controls.addView(row4);
         addButton(row1, "RECENTER", v -> recenter(), 1);
         addButton(row1, "LEFT HAND", v -> renderer.selectedHand = 0, 1);
         addButton(row1, "RIGHT HAND", v -> renderer.selectedHand = 1, 1);
