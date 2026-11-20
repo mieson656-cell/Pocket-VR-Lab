@@ -1,34 +1,39 @@
 # Pocket VR Lab
 
-Pocket VR Lab is an experimental, phone-based stereoscopic viewer and motion-control sandbox for Android.
+Pocket VR Lab is an Android stereoscopic VR sandbox built with OpenGL ES 2.0.
 
-## What it does
+## Version 0.2.0
 
-- Splits the landscape display into left-eye and right-eye views for a basic Cardboard-style viewer.
-- Uses the phone's rotation-vector sensor (gyroscope/fusion sensor when available) for head-look rotation.
-- Smooths head movement and provides a recenter control.
-- Includes on-screen side controls for move/turn, plus Jump and Use buttons.
-- Keeps the screen awake and uses immersive fullscreen mode.
+- Side-by-side stereoscopic rendering with separate left-eye and right-eye camera views.
+- A real-time 3D test room with a floor grid and colored reference objects.
+- Head orientation from Android's game rotation vector (with rotation-vector fallback): yaw, pitch, and roll.
+- Recenter calibration and live head-pose telemetry in degrees.
+- Two visible virtual 3D controllers, independently selectable and adjustable in X/Y/Z position and yaw/pitch rotation.
+- Adjustable stereo IPD.
+- Landscape immersive mode and screen-awake behavior.
 
-## Important limitations
+## Controller and tracking notes
 
-This is a rotation-only prototype. It does **not** provide positional tracking, room-scale tracking, controller tracking, or a complete VR runtime. The scene is a technical demo, not a game engine or a universal VR compatibility layer. A phone without a supported rotation sensor can still display the split-screen demo, but head-look will not work.
+The two controllers in this version are **virtual test models**. Their positions and rotations are adjusted with the on-screen controls; they are not physical tracked controllers. A phone gyroscope/rotation sensor measures orientation, not absolute position, and this app does not provide 6DoF room tracking, hand tracking, controller pairing, or a full OpenXR runtime.
 
-For best results, use a landscape phone mount/headset with lenses designed for the phone's screen size. Remove the phone from the viewer before interacting with settings or connecting accessories.
+The stereo renderer is a development sandbox, not a certified Google Cardboard viewer profile or a replacement for a dedicated headset runtime. Lens distortion correction and per-headset optical calibration are not implemented yet.
 
 ## Build
 
-The project uses Android Gradle Plugin 8.7.3 and JDK 17. Open the repository in Android Studio or run:
+- Android Gradle Plugin 8.7.3
+- Gradle 8.9
+- JDK 17
+- Minimum Android 8.0 (API 26)
+
+Run:
 
 ```bash
-gradle assembleDebug
+gradle --no-daemon assembleDebug assembleRelease
 ```
-
-The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## CI
 
-GitHub Actions builds the debug and release APKs on pushes and pull requests. Pushing a version tag such as `v1.0.0` builds the release APK and publishes a GitHub Release automatically.
+GitHub Actions builds debug and release APKs on pushes and pull requests. Push a version tag such as `v0.3.0` to publish a tagged release.
 
 ## License
 
