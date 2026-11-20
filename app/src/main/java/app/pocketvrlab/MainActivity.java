@@ -148,6 +148,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         private static final String FRAG =
             "precision mediump float; uniform vec4 uColor; void main(){ gl_FragColor=uColor; }";
         private int program, posHandle, mvpHandle, colorHandle;
+        private int surfaceWidth, surfaceHeight;
         private FloatBuffer cube;
         private FloatBuffer grid;
         volatile float headYaw, headPitch, headRoll;
@@ -204,18 +205,15 @@ public class MainActivity extends Activity implements SensorEventListener {
         private int shader(int type,String src) {
             int s=GLES20.glCreateShader(type); GLES20.glShaderSource(s,src); GLES20.glCompileShader(s); return s;
         }
-        @Override public void onSurfaceChanged(GL10 gl,int w,int h) { GLES20.glViewport(0,0,w,h); }
+        @Override public void onSurfaceChanged(GL10 gl,int w,int h) { surfaceWidth=w; surfaceHeight=h; GLES20.glViewport(0,0,w,h); }
 
         @Override public void onDrawFrame(GL10 gl) {
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT|GLES20.GL_DEPTH_BUFFER_BIT);
-            int w=GLES20ViewportWidth(), h=GLES20ViewportHeight();
+            int w=surfaceWidth, h=surfaceHeight;
             int eyeW=w/2;
             drawEye(0,eyeW,h,-1);
             drawEye(eyeW,w-eyeW,h,1);
         }
-        private int GLES20ViewportWidth() { int[] v=new int[4]; GLES20.glGetIntegerv(GLES20.GL_VIEWPORT,v,0); return v[2]; }
-        private int GLES20ViewportHeight() { int[] v=new int[4]; GLES20.glGetIntegerv(GLES20.GL_VIEWPORT,v,0); return v[3]; }
-
         private void drawEye(int x,int width,int height,int eye) {
             GLES20.glViewport(x,0,width,height);
             float[] proj=new float[16], view=new float[16], vp=new float[16], model=new float[16], mvp=new float[16];
