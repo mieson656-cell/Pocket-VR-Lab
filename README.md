@@ -1,22 +1,19 @@
 # Pocket VR Lab
 
-Pocket VR Lab is an Android stereoscopic VR sandbox built with OpenGL ES 2.0.
+Pocket VR Lab is a phone-native 3D world viewer built with OpenGL ES 2.0.
 
-## Version 0.2.0
+## Version 0.3.0
 
-- Side-by-side stereoscopic rendering with separate left-eye and right-eye camera views.
-- A real-time 3D test room with a floor grid and colored reference objects.
-- Head orientation from Android's game rotation vector (with rotation-vector fallback): yaw, pitch, and roll.
-- Recenter calibration and live head-pose telemetry in degrees.
-- Two visible virtual 3D controllers, independently selectable and adjustable in X/Y/Z position and yaw/pitch rotation.
-- Adjustable stereo IPD.
+This is **not a split-screen phone-in-a-headset app**. It renders one full-screen 3D view directly on the phone. No cardboard viewer, lenses, or headset are required.
+
+- Turn the phone to look around using its rotation/game-rotation sensor.
+- Drag a finger to look around with touch controls.
+- Tap the screen to interact with and cycle the highlighted scene object.
+- Recenter the view with the on-screen button.
+- A simple 3D room with a floor grid and three interactive objects.
 - Landscape immersive mode and screen-awake behavior.
 
-## Controller and tracking notes
-
-The two controllers in this version are **virtual test models**. Their positions and rotations are adjusted with the on-screen controls; they are not physical tracked controllers. A phone gyroscope/rotation sensor measures orientation, not absolute position, and this app does not provide 6DoF room tracking, hand tracking, controller pairing, or a full OpenXR runtime.
-
-The stereo renderer is a development sandbox, not a certified Google Cardboard viewer profile or a replacement for a dedicated headset runtime. Lens distortion correction and per-headset optical calibration are not implemented yet.
+The phone's rotation sensor provides orientation (3DoF-style look), not absolute position. This prototype does not implement room-scale positional tracking, hand tracking, physical controllers, or OpenXR. If the phone has no compatible rotation sensor, touch-look remains available.
 
 ## Build
 
@@ -25,15 +22,13 @@ The stereo renderer is a development sandbox, not a certified Google Cardboard v
 - JDK 17
 - Minimum Android 8.0 (API 26)
 
-Run:
-
 ```bash
 gradle --no-daemon assembleDebug assembleRelease
 ```
 
 ## CI
 
-GitHub Actions builds debug and release APKs on pushes and pull requests. Push a version tag such as `v0.3.0` to publish a tagged release.
+GitHub Actions builds debug and release APKs on pushes and pull requests. Push a version tag such as `v0.4.0` to publish a tagged release.
 
 ## License
 
